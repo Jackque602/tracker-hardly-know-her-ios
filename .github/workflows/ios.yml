@@ -1,0 +1,45 @@
+name: iOS
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_16.2.app
+
+      # The fog, tile, atlas and backup logic lives in a plain Swift package with no UIKit,
+      # MapKit or CoreLocation in it, so it is tested without a simulator or a device - the same
+      # bargain the Android build makes with its `core` module.
+      - name: Core tests
+        run: swift test --package-path Core
+
+      - name: Build the app
+        run: |
+          xcodebuild build \
+            -project Roamed.xcodeproj \
+            -scheme Roamed \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions || exit "${PIPESTATUS[0]}"
+
+      # An unsigned archive is enough to prove the release configuration compiles and that the
+      # Info.plist, the asset catalogue and the package all survive optimisation. Signing it for
+      # a device needs a certificate, which does not belong in a public repository.
+      - name: Build for release
+        run: |
+          xcodebuild build \
+            -project Roamed.xcodeproj \
+            -scheme Roamed \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions || exit "${PIPESTATUS[0]}"
