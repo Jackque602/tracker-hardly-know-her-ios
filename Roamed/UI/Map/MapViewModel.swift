@@ -33,7 +33,7 @@ final class MapViewModel: ObservableObject {
         self.index = exploration.index
         self.airIndex = exploration.airIndex
 
-        exploration.state
+        exploration.state.publisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in self?.fogState = state }
             .store(in: &cancellables)

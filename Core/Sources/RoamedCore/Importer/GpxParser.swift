@@ -37,8 +37,8 @@ public enum GpxParser {
     private static func points(in body: String) -> [ImportedFix] {
         let range = NSRange(body.startIndex..., in: body)
         return trackPoint.matches(in: body, range: range).compactMap { match in
-            guard let latitude = Coordinates.capture(match, 1, in: body).flatMap(Double.init),
-                  let longitude = Coordinates.capture(match, 2, in: body).flatMap(Double.init)
+            guard let latitude = Coordinates.capture(match, 1, in: body).flatMap({ Double($0) }),
+                  let longitude = Coordinates.capture(match, 2, in: body).flatMap({ Double($0) })
             else { return nil }
             let inner = Coordinates.capture(match, 3, in: body) ?? ""
             let innerRange = NSRange(inner.startIndex..., in: inner)

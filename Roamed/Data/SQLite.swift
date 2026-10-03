@@ -99,7 +99,7 @@ final class SQLiteDatabase {
 
     var userVersion: Int {
         guard let value = try? scalar("PRAGMA user_version") else { return 0 }
-        return value?.intValue ?? 0
+        return value.intValue ?? 0
     }
 
     func setUserVersion(_ version: Int) throws {

@@ -34,8 +34,8 @@ enum Coordinates {
         for expression in [geoUri, degreePair] {
             let range = NSRange(value.startIndex..., in: value)
             guard let match = expression.firstMatch(in: value, range: range),
-                  let latitude = capture(match, 1, in: value).flatMap(Double.init),
-                  let longitude = capture(match, 2, in: value).flatMap(Double.init)
+                  let latitude = capture(match, 1, in: value).flatMap({ Double($0) }),
+                  let longitude = capture(match, 2, in: value).flatMap({ Double($0) })
             else { continue }
             return fix(latitude: latitude, longitude: longitude, timestamp: timestamp)
         }

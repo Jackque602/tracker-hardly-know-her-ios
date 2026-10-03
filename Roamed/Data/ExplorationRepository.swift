@@ -28,6 +28,25 @@ struct TrackImportResult: Sendable {
     let newCells: Int
 }
 
+/**
+ A thread-safe box around the one value the map and the stats screen watch.
+
+ `CurrentValueSubject` is safe to write from any thread, but Combine was written before Swift
+ concurrency and carries no `Sendable` conformance, so the actor below could not otherwise hand one
+ out. Vouching for it here, once and with a reason, beats scattering the compiler's objection.
+ */
+final class FogStateStream: @unchecked Sendable {
+
+    private let subject = CurrentValueSubject<FogState, Never>(FogState())
+
+    var value: FogState {
+        get { subject.value }
+        set { subject.value = newValue }
+    }
+
+    var publisher: AnyPublisher<FogState, Never> { subject.eraseToAnyPublisher() }
+}
+
 enum RecordOutcome: Sendable {
     /// The fix was too vague to trust.
     case rejected(reason: String)
@@ -77,7 +96,7 @@ actor ExplorationRepository {
     nonisolated let airIndex = ExploredIndex()
 
     /// The map and the stats screen watch this rather than polling the indexes.
-    nonisolated let state = CurrentValueSubject<FogState, Never>(FogState())
+    nonisolated let state = FogStateStream()
 
     private let database: RoamedDatabase
     private let fog = FogEngine()

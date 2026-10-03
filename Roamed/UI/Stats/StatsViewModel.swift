@@ -19,7 +19,7 @@ final class StatsViewModel: ObservableObject {
         self.exploration = exploration
         self.regionMask = regionMask
 
-        exploration.state
+        exploration.state.publisher
             .map(\.version)
             .removeDuplicates()
             // Recompute when the fog actually changes rather than on a timer, but not on every

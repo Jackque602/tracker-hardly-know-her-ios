@@ -32,6 +32,7 @@ struct MapScreen: View {
                 settings: settings,
                 trail: viewModel.trail,
                 lastFix: viewModel.fogState.lastFix,
+                fogVersion: viewModel.fogState.version,
                 followMe: $followMe,
                 command: $command
             )
@@ -160,6 +161,8 @@ private struct FogMapView: UIViewRepresentable {
     let settings: RoamedSettings
     let trail: [[TrailPoint]]
     let lastFix: Fix?
+    /// Bumped by the repository on every change, which is what tells the renderer to redraw.
+    let fogVersion: Int64
     @Binding var followMe: Bool
     @Binding var command: MapCommand?
 
@@ -189,6 +192,7 @@ private struct FogMapView: UIViewRepresentable {
     }
 
     func updateUIView(_ mapView: MKMapView, context: Context) {
+        context.coordinator.redraw(ifChangedFrom: fogVersion)
         context.coordinator.apply(settings: settings, to: mapView)
         context.coordinator.apply(trail: trail, to: mapView)
 
@@ -225,7 +229,6 @@ private struct FogMapView: UIViewRepresentable {
         private var lastTrailSignature = ""
         private var lastOpacity: Double = -1
         private var lastStyle: RoamedMapStyle?
-        private var redrawTimer: Timer?
 
         init(index: ExploredIndex, airIndex: ExploredIndex) {
             self.index = index
@@ -233,32 +236,24 @@ private struct FogMapView: UIViewRepresentable {
             super.init()
         }
 
-        deinit {
-            redrawTimer?.invalidate()
-        }
-
         func attach(to mapView: MKMapView) {
             let overlay = FogOverlay(index: index, airIndex: airIndex)
             fogOverlay = overlay
             mapView.addOverlay(overlay, level: .aboveRoads)
-
-            // The fog changes as fixes arrive, which is not an event MapKit knows about, so the
-            // renderer is nudged on a timer. The version counter means an idle map costs nothing.
-            let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
-                self?.redrawIfChanged()
-            }
-            RunLoop.main.add(timer, forMode: .common)
-            redrawTimer = timer
         }
 
         func detach(from mapView: MKMapView) {
-            redrawTimer?.invalidate()
-            redrawTimer = nil
             mapView.delegate = nil
         }
 
-        private func redrawIfChanged() {
-            let version = index.version
+        /**
+         Redraws the fog, but only when it has actually changed.
+
+         MapKit has no idea a fix arrived, so something has to tell the renderer. The version
+         counter is what makes that cheap: SwiftUI re-runs this view on every published change,
+         and all but the ones that moved the fog return here immediately.
+         */
+        func redraw(ifChangedFrom version: Int64) {
             guard version != lastFogVersion else { return }
             lastFogVersion = version
             fogRenderer?.setNeedsDisplay()

@@ -130,10 +130,16 @@ public enum JSONParser {
                 let value = try parseValue()
                 entries.append((key: key, value: value))
                 skipWhitespace()
-                switch peek() {
-                case UInt8(ascii: ","): index += 1
-                case UInt8(ascii: "}"): index += 1; return .object(entries)
-                default: throw JSONParseError(message: "expected ',' or '}' at byte \(index)")
+                guard let next = peek() else {
+                    throw JSONParseError(message: "unterminated object")
+                }
+                if next == UInt8(ascii: ",") {
+                    index += 1
+                } else if next == UInt8(ascii: "}") {
+                    index += 1
+                    return .object(entries)
+                } else {
+                    throw JSONParseError(message: "expected ',' or '}' at byte \(index)")
                 }
             }
         }
@@ -150,10 +156,16 @@ public enum JSONParser {
                 let item = try parseValue()
                 items.append(item)
                 skipWhitespace()
-                switch peek() {
-                case UInt8(ascii: ","): index += 1
-                case UInt8(ascii: "]"): index += 1; return .array(items)
-                default: throw JSONParseError(message: "expected ',' or ']' at byte \(index)")
+                guard let next = peek() else {
+                    throw JSONParseError(message: "unterminated array")
+                }
+                if next == UInt8(ascii: ",") {
+                    index += 1
+                } else if next == UInt8(ascii: "]") {
+                    index += 1
+                    return .array(items)
+                } else {
+                    throw JSONParseError(message: "expected ',' or ']' at byte \(index)")
                 }
             }
         }
