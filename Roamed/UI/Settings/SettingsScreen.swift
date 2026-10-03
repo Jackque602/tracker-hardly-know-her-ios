@@ -64,13 +64,12 @@ struct SettingsScreen: View {
             allowedContentTypes: viewModel.importing?.contentTypes ?? [.data],
             allowsMultipleSelection: false
         ) { result in
-            if let kind = viewModel.importing {
-                viewModel.importFinished(kind, result)
-            }
+            viewModel.importFinished(result)
         }
-        .alert(
+        .confirmationDialog(
             "Erase everything?",
             isPresented: $confirmingErase,
+            titleVisibility: .visible,
             actions: {
                 Button("Erase", role: .destructive) { viewModel.eraseEverything() }
                 Button("Keep it", role: .cancel) {}
@@ -213,8 +212,8 @@ struct SettingsScreen: View {
             .foregroundStyle(.secondary)
 
             Button("Export backup") { viewModel.exportBackup() }
-            Button("Import backup") { viewModel.importing = .backup }
-            Button("Uncover a trip from Timeline or GPX") { viewModel.importing = .tracks }
+            Button("Import backup") { viewModel.beginImport(.backup) }
+            Button("Uncover a trip from Timeline or GPX") { viewModel.beginImport(.tracks) }
             Text(
                 "Fills in a journey this app missed, from a Google Maps Timeline export or a GPX "
                     + "file from any other tracker."

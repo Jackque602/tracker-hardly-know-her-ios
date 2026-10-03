@@ -55,11 +55,14 @@ final class SettingsViewModel: ObservableObject {
     @Published var message: String?
     @Published private(set) var busy = false
     @Published var pendingExport: ExportRequest?
+    /// Drives the picker's presentation. Cleared by SwiftUI the moment the picker dismisses.
     @Published var importing: ImportKind?
 
     private let exploration: ExplorationRepository
     private let settingsStore: SettingsStore
     private let appVersion: String
+    /// What the picker was opened for, kept past the dismissal that clears ``importing``.
+    private var requestedKind: ImportKind?
 
     init(exploration: ExplorationRepository, settingsStore: SettingsStore, appVersion: String) {
         self.exploration = exploration
@@ -124,9 +127,25 @@ final class SettingsViewModel: ObservableObject {
 
     // MARK: - Imports
 
-    func importFinished(_ kind: ImportKind, _ result: Result<[URL], Error>) {
+    func beginImport(_ kind: ImportKind) {
+        requestedKind = kind
+        importing = kind
+    }
+
+    /**
+     Handles what the picker came back with.
+
+     The kind is read from `requestedKind` rather than from `importing`, and that is the whole
+     point of there being two. SwiftUI sets the presentation binding to false as the picker
+     dismisses, which runs its setter and clears `importing` - and it does that before handing the
+     chosen file to this method. Reading the kind from the thing that was just cleared is why
+     picking a file used to do nothing at all.
+     */
+    func importFinished(_ result: Result<[URL], Error>) {
+        let kind = requestedKind
+        requestedKind = nil
         importing = nil
-        guard case .success(let urls) = result, let url = urls.first else { return }
+        guard let kind, case .success(let urls) = result, let url = urls.first else { return }
         switch kind {
         case .backup: importBackup(from: url)
         case .tracks: importTracks(from: url)
