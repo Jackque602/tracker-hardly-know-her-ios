@@ -18,7 +18,11 @@ let package = Package(
     targets: [
         .target(
             name: "RoamedCore",
-            resources: [.copy("Resources/regions.bin")]
+            resources: [
+                .copy("Resources/regions.bin"),
+                .copy("Resources/counties-us.bin"),
+                .copy("Resources/cities-us.bin"),
+            ]
         ),
         .testTarget(
             name: "RoamedCoreTests",

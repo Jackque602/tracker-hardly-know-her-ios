@@ -21,6 +21,8 @@ public struct RegionMaskError: Error, CustomStringConvertible {
 
  Built by `tools/build_region_mask.py` from Natural Earth data (public domain). The file that ships
  here is byte-for-byte the one the Android build reads, so the two apps agree about the world.
+
+ The same decoder reads the two finer atlases that sit underneath a state - see ``Bundled``.
  */
 public final class RegionMask: @unchecked Sendable {
 
@@ -35,7 +37,22 @@ public final class RegionMask: @unchecked Sendable {
 
     private static let magic: [UInt8] = Array("RMRG".utf8)
     private static let formatVersion = 1
-    private static let resourceName = "regions"
+    /// The three atlases that ship with the app: the world, then the two tiers below a state.
+    public enum Bundled: String, CaseIterable, Sendable {
+        /// Continents, countries and states, at z12. Shared byte for byte with the Android build.
+        case regions
+        /// US counties, at z12 - a county is ~29 squares at that size, so it needs nothing finer.
+        case counties = "counties-us"
+        /**
+         US cities, at z15.
+
+         A median city footprint is 30 km2 against a z12 square's 56 km2, so drawn on the main
+         atlas's grid a city would be handed every fog cell for miles around it and read as fully
+         explored after one drive past. At z15 a square is about 0.9 km2 and a median city is
+         some thirty of them, which is enough for a percentage to mean anything.
+         */
+        case cities = "cities-us"
+    }
 
     public let zoom: Int
     public let regions: [Region]
@@ -116,10 +133,10 @@ public final class RegionMask: @unchecked Sendable {
         return chain
     }
 
-    /// Loads the mask shipped inside the library.
-    public static func bundled() throws -> RegionMask {
-        guard let url = Bundle.module.url(forResource: resourceName, withExtension: "bin") else {
-            throw RegionMaskError("region mask \(resourceName).bin is missing from the build")
+    /// Loads one of the atlases shipped inside the library.
+    public static func bundled(_ which: Bundled = .regions) throws -> RegionMask {
+        guard let url = Bundle.module.url(forResource: which.rawValue, withExtension: "bin") else {
+            throw RegionMaskError("region mask \(which.rawValue).bin is missing from the build")
         }
         return try read(Data(contentsOf: url))
     }

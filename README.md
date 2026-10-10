@@ -29,6 +29,9 @@ build](#differences-from-the-android-build).
   covered, ranked, with the real share of each — 0.4% of Delaware reads as 0.4% of Delaware, not
   as a percentage of the planet. Worked out on the phone from a packaged atlas, so it needs no
   network and covers trips you imported as well as ones it watched.
+- **And, in the United States, down to the county and the city.** Open a state and it shows the
+  counties and cities inside it with the same honest share of each. Two more packaged atlases,
+  still no network.
 - **Flights, in blue.** Two fixes far enough apart and fast enough to have been a flight uncover
   the great circle between them — so a long-haul leg draws the arc it really flew, over Greenland
   rather than straight across the map. It counts towards every figure exactly as driven ground
@@ -204,6 +207,64 @@ python3 tools/build_region_mask.py --zoom 12 \
     --out Core/Sources/RoamedCore/Resources/regions.bin
 ```
 
+## Counties and cities
+
+Opening a state shows the counties and cities inside it. Those come from two further atlases, in
+the same format and read by the same decoder, because neither tier fits in the first one.
+
+**They are separate files because the resolutions have to differ.** A county is about 1,600 km²,
+which is some twenty-nine squares of the z12 grid the world atlas uses — fine as it is. A city is
+not: the median American urban footprint is 30 km², and a z12 square is 56 km². Drawn on that grid
+a city would be handed every fog cell for miles around it and read as fully explored after one
+drive past the airport. So cities get their own grid at z15, where a square is about 0.9 km² and a
+median city is thirty-odd of them.
+
+| | squares across | file | what it holds |
+| --- | --- | --- | --- |
+| `regions.bin` | z12 | 952 KiB | 7 continents, 242 countries, 4,573 states |
+| `counties-us.bin` | z12 | 249 KiB | 3,143 US counties, parishes and boroughs |
+| `cities-us.bin` | z15 | 96 KiB | 469 named US urban footprints |
+
+`regions.bin` is deliberately left alone rather than grown a fourth tier. It is shared byte for
+byte with the Android build, and that app's reader rejects region kinds it does not recognise — so
+adding one would blank out its statistics entirely. The detail files instead repeat, inside
+themselves, the states their localities belong to, carrying the same `US-PA`-style codes. That
+code is the only thing the three files share; each numbers its own regions from zero.
+
+Four things are worth knowing before reading the numbers:
+
+- **The United States only, so far.** Counties come from the US Census and cities from Natural
+  Earth's named places. Everywhere else a state simply has nothing underneath it, and shows no
+  disclosure arrow rather than an empty one.
+- **A city is its built-up footprint, not its city limits.** Natural Earth draws urban extent, so
+  "Harrisburg" takes in the suburbs and comes to 396 km² rather than the 31 km² inside the city
+  line. It is a real thing to measure and it is not the thing on the road sign.
+- **Only the cities anyone would name.** The footprints themselves are anonymous — 11,878
+  unnamed blobs — so each is named after the largest populated place sitting inside it. That
+  yields the ones you would recognise, a median of nine per state, and none of the small towns.
+- **A city that sprawls across a state line is cut at it.** Philadelphia's footprint reaches well
+  into Delaware and New Jersey; left alone, walking around Christiana would have been credited to
+  a Pennsylvania city, which is the same ground counted under two places that do not contain one
+  another. The part in the next state along is counted there and not here, and the city's own area
+  shrinks with it so it can still reach 100%.
+
+Rebuilding them:
+
+```
+python3 tools/build_locality_mask.py counties --zoom 12 \
+    --counties geojson-counties-fips.json \
+    --subdivisions ne_10m_admin_1_states_provinces.geojson \
+    --regions Core/Sources/RoamedCore/Resources/regions.bin \
+    --out Core/Sources/RoamedCore/Resources/counties-us.bin
+
+python3 tools/build_locality_mask.py cities --zoom 15 \
+    --urban ne_10m_urban_areas.geojson \
+    --places ne_10m_populated_places.geojson \
+    --subdivisions ne_10m_admin_1_states_provinces.geojson \
+    --regions Core/Sources/RoamedCore/Resources/regions.bin \
+    --out Core/Sources/RoamedCore/Resources/cities-us.bin
+```
+
 ## Differences from the Android build
 
 Everything in `Core` is a faithful port, tested against the same assertions. Everything above it had
@@ -273,5 +334,8 @@ app asks for nothing else.
 
 Map data is drawn by MapKit and is © Apple and its data providers.
 
-Borders, country names and state names come from [Natural Earth](https://www.naturalearthdata.com),
-which is in the public domain.
+Borders, country names, state names, urban footprints and city names come from
+[Natural Earth](https://www.naturalearthdata.com), which is in the public domain.
+
+US county boundaries come from the [US Census Bureau](https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html)
+cartographic boundary files, which are also in the public domain.

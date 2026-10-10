@@ -18,7 +18,7 @@ final class AppContainer: ObservableObject {
     /// Nil only if the store could not be opened at all, which the map reports rather than hides.
     let storageFailure: String?
 
-    private var regionMaskTask: Task<RegionMask?, Never>?
+    private var atlasTasks: [RegionMask.Bundled: Task<RegionMask?, Never>] = [:]
 
     init() {
         let settings = SettingsStore()
@@ -47,24 +47,24 @@ final class AppContainer: ObservableObject {
     }
 
     /**
-     The world's borders, read from the packaged atlas the first time the stats screen asks and
-     shared from then on.
+     One of the packaged atlases, read the first time the stats screen asks and shared from then on.
 
-     About a megabyte, so it is decoded off the main thread and only if something actually wants it
-     - the map and the tracker never do.
+     The world atlas is about a megabyte and the two detail tiers a third of that between them, so
+     each is decoded off the main thread and only if something actually wants it - the map and the
+     tracker never do, and nobody wants the county atlas until a state row is opened.
      */
-    func regionMask() async -> RegionMask? {
-        if let existing = regionMaskTask { return await existing.value }
+    func atlas(_ which: RegionMask.Bundled = .regions) async -> RegionMask? {
+        if let existing = atlasTasks[which] { return await existing.value }
         let task = Task.detached(priority: .utility) { () -> RegionMask? in
             do {
-                return try RegionMask.bundled()
+                return try RegionMask.bundled(which)
             } catch {
                 // Worth knowing about, but every other stat still works without it.
-                RoamedLog.warn("region mask unavailable; per-country stats will be hidden", error)
+                RoamedLog.warn("atlas \(which.rawValue) unavailable; its tier will be hidden", error)
                 return nil
             }
         }
-        regionMaskTask = task
+        atlasTasks[which] = task
         return await task.value
     }
 

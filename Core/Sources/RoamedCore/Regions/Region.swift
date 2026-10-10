@@ -1,10 +1,22 @@
 import Foundation
 
-/// What kind of thing a ``Region`` is. The three form a strict hierarchy.
+/**
+ What kind of thing a ``Region`` is. They form a strict hierarchy, each one inside the last.
+
+ The first three come from `regions.bin`, which the Android build reads byte for byte and whose
+ reader rejects kinds it does not know. So the last two never appear in that file: counties and
+ cities ship as their own atlases, at their own resolutions, and are joined to a state by its
+ code rather than by a region number.
+ */
 public enum RegionKind: Int, CaseIterable, Sendable {
     case continent = 0
     case country = 1
     case subdivision = 2
+    case county = 3
+    case city = 4
+
+    /// True for the tiers that live in a detail atlas rather than in `regions.bin`.
+    public var isLocality: Bool { self == .county || self == .city }
 }
 
 /**

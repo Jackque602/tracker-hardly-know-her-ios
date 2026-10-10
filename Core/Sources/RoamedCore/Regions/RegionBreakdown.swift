@@ -8,6 +8,14 @@ public struct RegionProgress: Equatable, Sendable, Identifiable {
     public let percentExplored: Double
     /// The country a state sits in, or the continent a country sits in.
     public let parentName: String?
+    /**
+     The parent's code, which is how a detail atlas joins back to the main one.
+
+     A county knows it belongs to `US-PA`, and that string is the only thing the two files share -
+     their region numbering is entirely their own. Matching on the code rather than the name also
+     survives two places being called the same thing.
+     */
+    public let parentCode: String?
 
     public var id: Int { region.id }
 
@@ -15,12 +23,14 @@ public struct RegionProgress: Equatable, Sendable, Identifiable {
         region: Region,
         exploredSquareMeters: Double,
         percentExplored: Double,
-        parentName: String? = nil
+        parentName: String? = nil,
+        parentCode: String? = nil
     ) {
         self.region = region
         self.exploredSquareMeters = exploredSquareMeters
         self.percentExplored = percentExplored
         self.parentName = parentName
+        self.parentCode = parentCode
     }
 }
 
@@ -37,6 +47,9 @@ public struct RegionTally: Equatable, Sendable {
     public let continents: [RegionProgress]
     public let countries: [RegionProgress]
     public let subdivisions: [RegionProgress]
+    /// Counties and cities, present only in a tally taken from a detail atlas.
+    public let counties: [RegionProgress]
+    public let cities: [RegionProgress]
     /// Total continents, countries and subdivisions the mask knows about.
     public let continentsInAtlas: Int
     public let countriesInAtlas: Int
@@ -47,6 +60,8 @@ public struct RegionTally: Equatable, Sendable {
         continents: [RegionProgress] = [],
         countries: [RegionProgress] = [],
         subdivisions: [RegionProgress] = [],
+        counties: [RegionProgress] = [],
+        cities: [RegionProgress] = [],
         continentsInAtlas: Int = 0,
         countriesInAtlas: Int = 0,
         unplacedSquareMeters: Double = 0.0
@@ -54,9 +69,17 @@ public struct RegionTally: Equatable, Sendable {
         self.continents = continents
         self.countries = countries
         self.subdivisions = subdivisions
+        self.counties = counties
+        self.cities = cities
         self.continentsInAtlas = continentsInAtlas
         self.countriesInAtlas = countriesInAtlas
         self.unplacedSquareMeters = unplacedSquareMeters
+    }
+
+    /// The localities this tally holds, grouped by the code of the state they sit in.
+    public func localities(of kind: RegionKind) -> [String: [RegionProgress]] {
+        let entries = kind == .county ? counties : cities
+        return Dictionary(grouping: entries.filter { $0.parentCode != nil }) { $0.parentCode! }
     }
 }
 
@@ -110,7 +133,8 @@ public enum RegionBreakdown {
                     region: region,
                     exploredSquareMeters: area,
                     percentExplored: percent(explored: area, total: region.areaSquareMeters),
-                    parentName: mask.region(region.parentId)?.name
+                    parentName: mask.region(region.parentId)?.name,
+                    parentCode: mask.region(region.parentId)?.code
                 )
             )
         }
@@ -127,6 +151,8 @@ public enum RegionBreakdown {
             continents: byKind[.continent] ?? [],
             countries: byKind[.country] ?? [],
             subdivisions: byKind[.subdivision] ?? [],
+            counties: byKind[.county] ?? [],
+            cities: byKind[.city] ?? [],
             continentsInAtlas: mask.regions.filter { $0.kind == .continent }.count,
             countriesInAtlas: mask.regions.filter { $0.kind == .country }.count,
             unplacedSquareMeters: unplaced

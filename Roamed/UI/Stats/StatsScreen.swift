@@ -10,7 +10,7 @@ struct StatsScreen: View {
         _viewModel = StateObject(
             wrappedValue: StatsViewModel(
                 exploration: container.exploration,
-                regionMask: { await container.regionMask() }
+                atlas: { await container.atlas($0) }
             )
         )
     }
@@ -43,7 +43,11 @@ struct StatsScreen: View {
             if let regions = viewModel.regions {
                 RegionSection(title: "Continents", entries: regions.continents)
                 RegionSection(title: "Countries", entries: regions.countries)
-                RegionSection(title: "States and provinces", entries: regions.subdivisions)
+                RegionSection(
+                    title: "States and provinces",
+                    entries: regions.subdivisions,
+                    localities: viewModel.localities
+                )
             }
 
             if !viewModel.summary.newCellsPerYear.isEmpty {
@@ -133,6 +137,17 @@ struct StatsScreen: View {
                     + "have uncovered fell outside every border, at sea or just off a coastline."
             }
         }
+        if !viewModel.localities.isEmpty {
+            text += "\n\nOpen a state to see the counties and cities inside it. Those two tiers "
+                + "are drawn from their own atlases - counties from the US Census, cities from "
+                + "Natural Earth - and so far they only cover the United States; everywhere else "
+                + "a state has nothing underneath it yet.\n\nA city here is its built-up "
+                + "footprint rather than its city limits, so it takes in the suburbs and reads "
+                + "larger than the place on a road sign. Only the cities Natural Earth names are "
+                + "listed, which is the ones you would recognise and not the small towns. Where a "
+                + "city sprawls across a state line, the part in the next state along is counted "
+                + "there and not here, so the figures still nest."
+        }
         return text
     }
 }
@@ -171,6 +186,8 @@ private struct RegionSection: View {
 
     let title: String
     let entries: [RegionProgress]
+    /// Only the states section has anything underneath it; everything else passes nil.
+    var localities: LocalityIndex?
 
     @State private var expanded = false
 
@@ -180,7 +197,7 @@ private struct RegionSection: View {
         if !entries.isEmpty {
             Section {
                 ForEach(expanded ? entries : Array(entries.prefix(RegionSection.collapsedRows))) { entry in
-                    RegionRow(entry: entry)
+                    RegionRow(entry: entry, detail: localities?.forState(entry.region.code))
                 }
                 if entries.count > RegionSection.collapsedRows {
                     Button(expanded ? "Show fewer" : "Show all \(entries.count)") {
@@ -203,11 +220,30 @@ private struct RegionSection: View {
  list is finished - a single-entry list would be permanently full - and a bar scaled to the true
  share is under a pixel wide at the fractions of a percent this app deals in. Either way it would
  be a picture that disagreed with the number printed beside it.
+
+ A state that has counties or cities recorded in it opens to show them. The rest do not, and are
+ deliberately not given a disclosure arrow that would do nothing: outside the United States there
+ is no tier below a state yet, and an arrow promising one would be a lie.
  */
 private struct RegionRow: View {
+
     let entry: RegionProgress
+    var detail: StateDetail?
 
     var body: some View {
+        if let detail, !detail.isEmpty {
+            DisclosureGroup {
+                LocalityList(title: "Counties", entries: detail.counties)
+                LocalityList(title: "Cities and towns", entries: detail.cities)
+            } label: {
+                headline
+            }
+        } else {
+            headline
+        }
+    }
+
+    private var headline: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.region.name).lineLimit(2)
@@ -229,5 +265,37 @@ private struct RegionRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// One tier inside an opened state: its heading, then a line per place, most covered first.
+private struct LocalityList: View {
+
+    let title: String
+    let entries: [RegionProgress]
+
+    var body: some View {
+        if !entries.isEmpty {
+            Text("\(title) · \(entries.count)")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .padding(.top, 2)
+            ForEach(entries) { entry in
+                HStack(spacing: 8) {
+                    Text(entry.region.name)
+                        .font(.subheadline)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Text(ExplorationStats.formatPercent(entry.percentExplored))
+                        .font(.subheadline)
+                        .monospacedDigit()
+                    Text(ExplorationStats.formatArea(entry.exploredSquareMeters))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 62, alignment: .trailing)
+                }
+            }
+        }
     }
 }
